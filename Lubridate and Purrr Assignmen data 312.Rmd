@@ -1,0 +1,195 @@
+---
+title: 'Data 312: Lubridate and Purr assigment'
+author: "Alasya Zeweldi"
+date: "2025-02-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(lubridate)
+library(purrr)
+library(dplyr)
+```
+
+```{r}
+
+# First, I need to generate the date sequence using seq.i sued theof dates from January 1, 2015 to December 31, 2025, spaced by every two months. Extract the year, quarter, and ISO week number for each date.
+dates_seq <- seq(from = ymd("2015-01-01"), 
+                 to = ymd("2025-12-31"), 
+                 by = "2 months")
+
+head(dates_seq)
+```
+
+```{r}
+
+# Now I extracted the components using lubridate functions, here I extracted the year, quarter, and ISO week from each date using lubridate's specialized functions. Organizing these components in a data frame makes analysis easier. ISO week numbering is useful for grouping dates by week across year boundaries.
+date_info <- data.frame(
+  date = dates_seq,
+  year = year(dates_seq),
+  quarter = quarter(dates_seq),
+  iso_week = isoweek(dates_seq))
+
+head(date_info)
+
+```
+
+```{r}
+
+# I defined the sample dates and then i converted strings to date objects, then i converted strings to date objects using ymd. I displayed the original strings to verify my input data.
+sample_dates <- c("2018-03-15", "2020-07-20", "2023-01-10", "2025-09-05")
+date_objects <- ymd(sample_dates)
+
+
+head(sample_dates)
+```
+
+```{r}
+
+# then i calculated differences between consecutive dates pairs in both months and weeks. The head() and tail() functions create these pairs elegantly without loops. The interval() function with integer division provides clean whole-number differences 
+date_diffs <- data.frame(
+  start_date = head(date_objects, -1),
+  end_date = tail(date_objects, -1),
+  diff_months = interval(head(date_objects, -1), tail(date_objects, -1)) %/% months(1),
+  diff_weeks = interval(head(date_objects, -1), tail(date_objects, -1)) %/% weeks(1))
+
+head(date_diffs)
+```
+
+```{r}
+
+# heree is out numeric vector and head list the output, These varied vector types help demonstrate how statistical functions behave with different numerical patterns 
+
+num_lists <- list(c(4, 16, 25, 36, 49), c(2.3, 5.7, 8.1, 11.4), c(10, 20, 30, 40, 50))
+
+head(num_lists)
+```
+
+```{r}
+# here i used map() to compute statistics for each vector. I used purrr's map_dfr function to calculate statistics for each vector without repetitive code. The function creates a tibble with the statistics while map_dfr combines results into a single data frame. 
+stats_results <- map_dfr(num_lists, function(x) {
+  tibble(
+    mean_value = mean(x),
+    median_value = median(x),
+    sd_value = sd(x))})
+
+head(stats_results)
+
+
+```
+
+```{r}
+
+# i added identifier for each list to clarify which statistics belong to which vector. Using mutate with row_number() generates sequential IDs, making the results more readable and useful for sharing analysis.
+stats_results <- stats_results %>%
+  mutate(list_id = paste0("list_", row_number()))
+
+head(stats_results)
+
+```
+
+```{r}
+
+# here i used Alternative using map_dbl() for individual statistics.  This creates individual vectors for each statistic before combining them. I included both approaches to demonstrate different purrr techniques. map_dbl is useful because it returns numeric vectors directly.
+mean_values <- map_dbl(num_lists, mean)
+median_values <- map_dbl(num_lists, median)
+sd_values <- map_dbl(num_lists, sd)
+
+head(mean_values)
+
+stats_results_alt <- tibble(
+  list_id = paste0("list_", 1:length(num_lists)),
+  mean_value = mean_values,
+  median_value = median_values,
+  sd_value = sd_values)
+
+head(stats_results_alt)
+
+
+
+```
+
+```{r}
+
+#here i safely convert mixed date formats to Date format and extract the month name. I created a list of date strings in various formats to test robust date parsing. The list includes ISO format, slash-separated dates, text month format, and an invalid string to test our function's flexibility.
+
+date_strings <- list("2023-06-10", "2022/12/25", "15-Aug-2021", "InvalidDate")
+head(date_strings)
+
+
+```
+
+
+
+```{r}
+
+# here i created a function to parse dates in various formats and extract month
+parse_date_get_month <- function(date_str) {
+  # Try to parse the date with multiple formats
+  parsed_date <- NA
+  
+  # i tried each format, one at a time
+  if(is.na(parsed_date)) {
+    parsed_date <- suppressWarnings(try(ymd(date_str), silent = TRUE))
+  }
+  
+  
+  if(is.na(parsed_date) || inherits(parsed_date, "try-error")) {
+    parsed_date <- suppressWarnings(try(dmy(date_str), silent = TRUE))
+  }
+  
+  if(is.na(parsed_date) || inherits(parsed_date, "try-error")) {
+    parsed_date <- suppressWarnings(try(mdy(date_str), silent = TRUE))
+  }
+  
+  # and then returned month name if successful, "Invalid" otherwise
+  if(!is.na(parsed_date) && !inherits(parsed_date, "try-error")) {
+    return(month(parsed_date, label = TRUE, abbr = FALSE))
+  } else {
+    return("Invalid")}}
+        
+  head(parse_date_get_month)      
+ 
+  # This function handles multiple date formats and errors gracefully. It tries different formats sequentially (ymd, dmy, mdy) until one works. The suppressWarnings and try functions prevent crashes. It returns either the month name or "Invalid" if parsing fails.
+
+```
+
+```{r}
+
+#  I used a simple for loop instead of map functions to apply our parsing function. This makes debugging easier for complex operations. Pre-allocating the character vector before populating it improves efficiency.
+month_names <- character(length(date_strings))
+for(i in 1:length(date_strings)) {
+  month_names[i] <- parse_date_get_month(date_strings[[i]])}
+
+head(month_names)
+```
+
+```{r}
+
+# here i created a clean table showing result. This created a tibble showing both original strings and extracted month names. This makes it easy to verify our parsing function worked correctly. The results show successful month extraction from various formats and proper handling of the invalid date.
+
+date_results <- tibble(
+  Date_String = unlist(date_strings),
+  Month_Name = month_names)
+
+head(date_results)
+
+```
+
+```{r}
+#Conclusion:
+
+
+#Exercise 1 demonstrates date sequence generation and extraction of date components using lubridate. Exercise 2 shows how to calculate time intervals between dates in different units.Exercise 3 illustrates the power of functional programming with purrr to apply statistical functions across multiple vectors.Exercise 4 combines both packages to create a robust solution for handling mixed date formats safely.
+
+
+
+
+```
+
